@@ -1,29 +1,59 @@
 from flask import Flask, render_template, jsonify, request, send_file, abort
 import psutil
-import subprocess
+import threading
 import os
 import lightDetect
 from flask_socketio import SocketIO, emit
 import zipfile
 import io
+import sys
 
+progress = 0
+iteration = 0
+lock = threading.Lock()
 
-for file in os.listdir('inputVids'):
-    os.remove('inputVids/' + file)
-for file in os.listdir('outputVids'):
-    os.remove('outputVids/' + file)
+def process_file_helper():
+    global progress
+    global iteration
+    global lock
+    print('Processing Files pid: ', os.getpid())
+    lock.acquire()
+    # Files Successfully Uploaded, Time to Process them
+    total_files = len(os.listdir('inputVids'))
+    filename = None
+    i = 0
+    for file in os.listdir('inputVids'):
+        print(i, progress, file)
+        if i == progress:
+            filename = file
+            break
+        i += 1
+    print(filename)
+    iteration = lightDetect.lightDetect(iteration, filename)
+    lock.release()
+    progress += 1
+    print(progress/total_files*100)
 
 app = Flask(__name__, static_url_path='/static')
 app.config['UPLOAD_FOLDER'] = 'inputVids'
 app.config['OUTPUT_FOLDER'] = 'outputVids'
 
-socketio = SocketIO(app)
-
-def ack():
-    print('emit was received!')
 
 @app.route('/')
 def index():
+    lock.acquire()
+    lock.release()
+    print("Main thread still going")
+    global progress
+    progress = 0
+    global iteration 
+    iteration = 0
+    lock.acquire()
+    for file in os.listdir('inputVids'):
+        os.remove('inputVids/' + file)
+    for file in os.listdir('outputVids'):
+        os.remove('outputVids/' + file)
+    lock.release()
     return render_template('index.html')
 
 
@@ -46,26 +76,26 @@ def upload_file():
         print(filename + ' uploaded')
     if not os.listdir('inputVids'):
         print('No files of correct type uploaded')
-        return jsonify('No files of correct type uploaded'), 400
-    return jsonify({'upload_done'}), 200
+        return jsonify({'error': 'No files of correct type uploaded'}), 400
+    return jsonify({'data': 'upload_done'}), 200
 
 @app.route('/process', methods=['POST'])
 def process_file():
-    # Files Successfully Uploaded, Time to Process them
-    iteration = 0
-    i = 0
+    global progress
+    global process_to_kill
     total_files = len(os.listdir('inputVids'))
-    print("emit upload_done")
-    socketio.emit('upload_done', {}, callback=ack)
-    for filename in os.listdir('inputVids'):
-        print(filename)
-        socketio.emit('upload_progress', {'progress': (i + 1) / float(total_files) * 100}, callback=ack)
-        iteration = lightDetect.lightDetect(iteration, filename)
-        i += 1
-    return jsonify({}), 200
+    print('Main pid: ', os.getpid())
+    p = threading.Thread(target=process_file_helper)
+    p.start()
+    p.join()
+    return jsonify({'progress': round(progress/total_files*100)}), 200
+
 
 @app.route('/download_all')
 def download_all():
+    global progress
+    progress = 0
+    global iteration 
     iteration = 0
     # Create an in-memory zip file
     memory_file = io.BytesIO()
@@ -79,6 +109,4 @@ def download_all():
 
 if __name__ == '__main__':
     app.debug = True
-    socketio.run(app)
-    # Start App Using this: waitress-serve --listen=127.0.0.1:5000
-
+    app.run()

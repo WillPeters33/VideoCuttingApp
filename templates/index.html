@@ -105,11 +105,11 @@
         }
     </style>
 </head>
-<body  data-bs-theme=dark onload="resetApp();">
+<body  data-bs-theme=dark onload="resetApp(); ">
     <!-- Overlay for loading indicator -->
     <div class="overlay" id="loadingOverlay">
         <div class="spinner"></div>
-        <p>Processing...</p>
+        <p id="processingText">Processing...</p>
     </div>
 
     <!-- MAIN AREA -->
@@ -135,16 +135,24 @@
         <div class="alert alert-info center-vertically" id="progressInfo">
             <strong>File(s) uploaded successfully. Please wait for your videos to be processed.</strong>
        </div>
-        
-        <div class="progress" style="margin-top: 20px;" id="progressBar">
-            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%;"></div>
+
+        <div id="progressArea" class="progress" style="margin-top: 20px;">
+            <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="10" aria-valuemin="0" aria-valuemax="100" style="width: 10%;"></div>
         </div>
-        
+  
+  
         <!-- DOWNLOAD AREA -->
         <div class="alert alert-secondary center-vertically" id="downloadInfo">
             <div>
                 <strong>Download your clips here:</strong>
                 <button class="btn btn-success" id="downloadBtn" style="margin-left:20px" onclick="window.location.href='/download_all'"><strong>Download</strong></button>
+            </div>
+        </div>
+
+        <!-- ERROR AREA -->
+        <div class="alert alert-danger center-vertically" id="errorInfo">
+            <div>
+                <strong>No video files uploaded or files not uploaded properly. Please try again.</strong>
             </div>
         </div>
     </div>

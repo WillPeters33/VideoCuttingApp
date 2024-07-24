@@ -1,17 +1,3 @@
-const socket = io.connect('http://localhost:5000/');
-
-socket.on('upload_done', function(data) {
-    console.log('Upload done emit recieved');
-    document.getElementById('loadingOverlay').style.display = 'none';
-    showProgress();
-    
-});
-socket.on('upload_progress', function(data) {
-    console.log('Upload progress emit recieved:', data.progress);
-    const progressBar = document.getElementById('progressBar');
-    progressBar.style.width = data.progress + '%';
-    progressBar.textContent = Math.round(data.progress) + '%';
-});
 
 //Scripts for buttons
 function settingsHover() {
@@ -35,19 +21,37 @@ function reset_menu_show() {
     alert.style.display = "flex";
 }
 
+function error_menu_hide() {
+    var alert = document.getElementById("errorInfo");
+    alert.style.display = "none";
+}
+
+function error_menu_show() {
+    var alert = document.getElementById("errorInfo");
+    alert.style.display = "flex";
+}
 
 function hideProgress() {
     var progressInfo = document.getElementById("progressInfo");
+    var progressArea = document.getElementById("progressArea");
     var progressBar = document.getElementById("progressBar");
     progressInfo.style.display = "none";
     progressBar.style.display = "none";
+    progressArea.style.display = "none";
+    //progressArea.style.display = "none";
 }
 
 function showProgress() {
     var progressInfo = document.getElementById("progressInfo");
+    var progressArea = document.getElementById("progressArea");
     var progressBar = document.getElementById("progressBar");
+    progressBar.style.width = '3%';
+    progressArea.style.display = "flex";
+    progressArea.style['margin-top'] = "20px";
     progressInfo.style.display = "block";
     progressBar.style.display = "block";
+    progressBar['aria-valuenow'] = '3';
+   
 }
 
 function showDownload() {
@@ -68,9 +72,12 @@ function resetApp() {
     hideDownload();
     reset_menu_hide();
     hideProgress();
+    error_menu_hide();
 }
 
 function reset() {
+    document.getElementById('loadingOverlay').style.display = 'block';
+    document.getElementById('processingText').innerText = 'Refreshing Please Wait...';
     location.reload();
 }
 
@@ -83,6 +90,7 @@ function downloadVids() {
     
 }
 
+
 document.addEventListener("click", function(event) {
     var dropdownMenu = document.querySelector(".dropdown-menu");
     if (!event.target.closest(".settings")) {
@@ -92,12 +100,14 @@ document.addEventListener("click", function(event) {
 
 // MAIN EVENT LISTENERS
 document.addEventListener('DOMContentLoaded', function() {
+
     var uploadForm = document.getElementById('uploadForm');
     
     uploadForm.addEventListener('submit', function(event) {
         event.preventDefault(); // Prevent the default form submission
         document.getElementById('loadingOverlay').style.display = 'block';
-
+        document.getElementById('processingText').innerText = 'Processing...';
+        error_menu_hide();
         var fileInput = document.getElementById('fileInput');
         var files = fileInput.files;
 
@@ -114,15 +124,48 @@ document.addEventListener('DOMContentLoaded', function() {
             body: formData
         })
         .then(response => response.json())
-        .then(data => {
-            console.log('Files processed successfully:', data);
-            document.getElementById('loadingOverlay').style.display = 'none';
-            showDownload();
-        })
         .catch(error => {
             console.error('Error uploading files:', error);
-        });
+        })
+        .then(data => {
+            if (data.error) {
+                document.getElementById('loadingOverlay').style.display = 'none';
+                error_menu_show();
+                console.error('Error uploading files:', data.error);
+                return;
+            }
+            console.log('Files uploaded successfully:', data);
+            document.getElementById('loadingOverlay').style.display = 'none';
+            hideDownload();
+            showProgress();
+            updateProgress();
 
+        });
+        async function updateProgress() {
+            let progressValue = 0;
+        
+            while (progressValue < 100) {
+                try {
+                    const response = await fetch('/process', {
+                        method: 'POST'
+                    });
+                    const data = await response.json();
+                    progressValue = data.progress;
+                    console.log(progressValue)
+                    const progressBar = document.getElementById('progressBar');
+                    progressBar['aria-valuenow'] = progressValue;
+                    progressBar.style.width = progressValue + '%';
+                } catch (error) {
+                    console.error('Error processing files:', error);
+                    break; // Optionally break the loop if there's an error
+                }
+            }
+            
+            hideProgress();
+            showDownload();
+        }
     });
 });
+
+
 
